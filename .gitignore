@@ -1,0 +1,6 @@
+generated_images/*
+!generated_images/.gitkeep
+*.db
+.env
+__pycache__/
+*.pyc
