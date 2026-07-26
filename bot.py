@@ -93,7 +93,12 @@ async def main():
     scheduler = start_scheduler(bot)
     logger.info("Rejalashtiruvchi ishga tushdi.")
 
-    await start_web_server()
+    try:
+        await start_web_server()
+    except OSError as e:
+        # Masalan VPS/Docker'da PORT band bo'lsa — bu faqat Render health-check uchun kerak,
+        # botning asosiy ishlashiga (Telegram polling) ta'sir qilmasligi shart.
+        logger.warning(f"Health-check server ishga tushmadi ({e}) — bot baribir davom etadi.")
 
     for admin_id in ADMIN_IDS:
         try:
