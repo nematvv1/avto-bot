@@ -1,13 +1,15 @@
 """
-Brendingni test qilish uchun — OpenAI ishlatmasdan.
+Brendingni qo'lda ko'zdan kechirish uchun — OpenAI ishlatmasdan.
 Oddiy gradient rasm yaratadi va ustiga logo + kanal nomini joylab ko'rsatadi.
+
+Ishga tushirish: python scripts/preview_branding.py
+(Bu avtomatik test emas — natijani Explorer'da ochadi, faqat qo'lda tekshirish uchun.)
 """
 from PIL import Image, ImageDraw
 import sys
 import os
 
-# Loyiha papkasiga o'tamiz
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from branding import add_branding
 from config import BRAND_NAME, BRAND_ACCENT_COLOR
@@ -35,7 +37,7 @@ for i in range(5, 0, -1):
 try:
     from PIL import ImageFont
     font = ImageFont.truetype(os.path.join("assets", "fonts", "Outfit-Bold.ttf"), 48)
-except:
+except Exception:
     font = ImageFont.load_default()
 
 text = "TEST RASM"
@@ -53,8 +55,9 @@ print("OK: Test rasm yaratildi:", test_path)
 branded_path = add_branding(test_path)
 print("OK: Brending qo'shildi:", branded_path)
 
-# 3. Natijani ochish
-import subprocess
-subprocess.Popen(["explorer", os.path.abspath(branded_path)])
-print("Rasm ochilmoqda...")
+# 3. Natijani ochish (faqat Windows)
+if sys.platform == "win32":
+    import subprocess
+    subprocess.Popen(["explorer", os.path.abspath(branded_path)])
+    print("Rasm ochilmoqda...")
 print("Fayl manzili:", os.path.abspath(branded_path))

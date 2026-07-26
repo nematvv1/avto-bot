@@ -50,12 +50,26 @@ def image_choice_menu() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def preview_actions(content_id: int) -> InlineKeyboardMarkup:
+def preview_actions(content_id: int, content_type: str = "post") -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="✅ Tasdiqlash", callback_data=f"approve:{content_id}")
-    kb.button(text="✏️ Tahrirlash", callback_data=f"edit:{content_id}")
+    kb.button(text="✏️ Matnni tahrirlash", callback_data=f"edit:{content_id}")
+    if content_type in ("quiz", "poll"):
+        kb.button(text="🔡 Variantlarni tahrirlash", callback_data=f"editopts:{content_id}")
+    if content_type == "quiz":
+        kb.button(text="💬 Izohni tahrirlash", callback_data=f"editexpl:{content_id}")
     kb.button(text="🔄 Qayta generatsiya", callback_data=f"regen:{content_id}")
     kb.button(text="❌ Bekor qilish", callback_data=f"reject:{content_id}")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def correct_option_menu(content_id: int, options: list) -> InlineKeyboardMarkup:
+    """Variantlar yangilangach, to'g'ri javobni tanlash uchun."""
+    kb = InlineKeyboardBuilder()
+    for i, opt in enumerate(options):
+        label = opt if len(opt) <= 40 else opt[:37] + "..."
+        kb.button(text=f"✅ {label}", callback_data=f"setcorrect:{content_id}:{i}")
     kb.adjust(1)
     return kb.as_markup()
 
@@ -82,6 +96,25 @@ def scheduled_item_actions(content_id: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="🗑 O'chirish", callback_data=f"ask_delete_scheduled:{content_id}")
     kb.adjust(1)
+    return kb.as_markup()
+
+
+def failed_item_actions(content_id: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔁 Qayta urinish", callback_data=f"retry_failed:{content_id}")
+    kb.button(text="🗑 O'chirish", callback_data=f"ask_delete_scheduled:{content_id}")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def scheduled_nav(offset: int, page_size: int, total: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    if offset > 0:
+        kb.button(text="⬅️ Oldingi", callback_data=f"menu:scheduled:{max(0, offset - page_size)}")
+    if offset + page_size < total:
+        kb.button(text="Keyingi ➡️", callback_data=f"menu:scheduled:{offset + page_size}")
+    kb.button(text="🏠 Bosh menyu", callback_data="menu:main")
+    kb.adjust(2, 1)
     return kb.as_markup()
 
 

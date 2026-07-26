@@ -54,6 +54,12 @@ IMAGE_SIZE = os.getenv("IMAGE_SIZE", "1536x1024")
 # So'rovnomada bir nechta javob tanlash mumkinmi (true/false)
 POLL_ALLOWS_MULTIPLE = os.getenv("POLL_ALLOWS_MULTIPLE", "false").lower() == "true"
 
+# Har bir "post" turidagi kontent oxiriga avtomatik qo'shiladigan kontakt bloki
+# (bog'lanish uchun raqamlar, ro'yxatdan o'tish manzili va h.k.). Bo'sh qoldirilsa, qo'shilmaydi.
+# .env faylida qatorlarni "\n" bilan ajrating (masalan: "Qator1\nQator2").
+_post_contact_footer_raw = os.getenv("POST_CONTACT_FOOTER", "")
+POST_CONTACT_FOOTER = _post_contact_footer_raw.replace("\\n", "\n")
+
 # --- Kanal brendi (logo + nom) ---
 # Har bir generatsiya qilingan rasmga avtomatik logotip va kanal nomi joylanadimi
 ADD_BRANDING = os.getenv("ADD_BRANDING", "true").lower() == "true"
@@ -61,8 +67,13 @@ ADD_BRANDING = os.getenv("ADD_BRANDING", "true").lower() == "true"
 # Kanal nomi (rasmda ko'rinadi)
 BRAND_NAME = os.getenv("BRAND_NAME", "Iqtidor Academy")
 
-# Logotip fayli manzili
-LOGO_PATH = os.getenv("LOGO_PATH", os.path.join(os.path.dirname(__file__), "assets", "logo.png"))
+# Logotip fayli manzili. Nisbiy yo'l berilsa (masalan "assets/logo.png"), loyiha papkasiga
+# nisbatan hal qilinadi — shunda bot qaysi joriy papkadan ishga tushirilishidan qat'i nazar ishlaydi.
+_logo_path_raw = os.getenv("LOGO_PATH", os.path.join(os.path.dirname(__file__), "assets", "logo.png"))
+LOGO_PATH = (
+    _logo_path_raw if os.path.isabs(_logo_path_raw)
+    else os.path.join(os.path.dirname(__file__), _logo_path_raw)
+)
 
 # Brend rangida ajratuvchi chiziq (logotipingizdagi haqiqiy ko'k rang)
 BRAND_ACCENT_COLOR = os.getenv("BRAND_ACCENT_COLOR", "#2033E9")
@@ -72,3 +83,18 @@ SCHEDULER_CHECK_INTERVAL = 30
 
 # Eski rasm fayllarini necha kundan keyin o'chirish (0 = o'chirmaslik)
 IMAGE_CLEANUP_DAYS = int(os.getenv("IMAGE_CLEANUP_DAYS", "7"))
+
+# --- Joylashda xatolik bo'lganda qayta urinish ---
+# Necha marta urinilgach, post "failed" deb belgilanadi va qayta avtomatik urinilmaydi
+SCHEDULE_MAX_RETRIES = int(os.getenv("SCHEDULE_MAX_RETRIES", "5"))
+# Urinishlar orasidagi boshlang'ich kutish vaqti (daqiqa) — har urinishda 2 barobar oshadi
+SCHEDULE_RETRY_BASE_MINUTES = int(os.getenv("SCHEDULE_RETRY_BASE_MINUTES", "2"))
+# Urinishlar orasidagi maksimal kutish vaqti (daqiqa)
+SCHEDULE_RETRY_MAX_MINUTES = int(os.getenv("SCHEDULE_RETRY_MAX_MINUTES", "60"))
+
+# --- AI generatsiya uchun rate-limit ---
+# Bir soat ichida nechta kontent generatsiya qilish mumkinligi (OpenAI xarajatini nazorat qilish uchun)
+MAX_GENERATIONS_PER_HOUR = int(os.getenv("MAX_GENERATIONS_PER_HOUR", "20"))
+
+# Rejalashtirilganlar ro'yxatida bir sahifada nechta element ko'rsatiladi
+SCHEDULED_PAGE_SIZE = int(os.getenv("SCHEDULED_PAGE_SIZE", "8"))

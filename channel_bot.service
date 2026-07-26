@@ -1,0 +1,17 @@
+[Unit]
+Description=Kanal Kontent Boti (Telegram)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# O'zingizning foydalanuvchi va yo'lingizga moslang:
+User=botuser
+WorkingDirectory=/opt/channel_bot
+ExecStart=/opt/channel_bot/venv/bin/python /opt/channel_bot/bot.py
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/channel_bot/.env
+
+[Install]
+WantedBy=multi-user.target

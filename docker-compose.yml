@@ -1,0 +1,10 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./generated_images:/app/generated_images
+      - ./logs:/app/logs
+      - ./bot_database.db:/app/bot_database.db

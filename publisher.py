@@ -7,6 +7,7 @@ from aiogram import Bot
 from aiogram.types import FSInputFile
 from config import CHANNEL_ID, POLL_ALLOWS_MULTIPLE
 import database as db
+from utils import safe_truncate_html
 
 
 async def publish_content(bot: Bot, content: dict) -> int:
@@ -22,10 +23,12 @@ async def publish_content(bot: Bot, content: dict) -> int:
             msg = await bot.send_photo(
                 chat_id=CHANNEL_ID,
                 photo=photo,
-                caption=content["text"][:1024],
+                caption=safe_truncate_html(content["text"], 1024),
             )
         else:
-            msg = await bot.send_message(chat_id=CHANNEL_ID, text=content["text"])
+            msg = await bot.send_message(
+                chat_id=CHANNEL_ID, text=safe_truncate_html(content["text"], 4096)
+            )
         message_id = msg.message_id
 
     elif content_type == "quiz":

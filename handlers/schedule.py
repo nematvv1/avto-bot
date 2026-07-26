@@ -13,7 +13,7 @@ import keyboards as kb
 from publisher import publish_content
 from states import Scheduling
 from handlers.filters import IsAdmin
-from config import TIMEZONE
+from config import TIMEZONE, SCHEDULED_PAGE_SIZE
 
 router = Router()
 router.message.filter(IsAdmin())
@@ -117,28 +117,70 @@ async def manual_datetime_received(message: Message, state: FSMContext):
 
 # ---------- Rejalashtirilganlar ro'yxati ----------
 
-@router.callback_query(F.data == "menu:scheduled")
+@router.callback_query(F.data.startswith("menu:scheduled"))
 async def scheduled_list(callback: CallbackQuery):
-    items = await db.get_scheduled_list()
-    if not items:
+    parts = callback.data.split(":")
+    offset = int(parts[2]) if len(parts) > 2 else 0
+
+    total = await db.count_scheduled()
+    if total == 0:
+        failed = await db.get_failed_list()
+        if not failed:
+            await callback.message.edit_text(
+                "📅 Hozircha rejalashtirilgan postlar yo'q.", reply_markup=kb.back_to_menu()
+            )
+            await callback.answer()
+            return
         await callback.message.edit_text(
-            "📅 Hozircha rejalashtirilgan postlar yo'q.", reply_markup=kb.back_to_menu()
+            "📅 Rejalashtirilgan postlar yo'q.", reply_markup=kb.back_to_menu()
         )
         await callback.answer()
+        await _show_failed_list(callback.message, failed)
         return
 
+    items = await db.get_scheduled_list(limit=SCHEDULED_PAGE_SIZE, offset=offset)
+    page_end = min(offset + len(items), total)
     await callback.message.edit_text(
-        f"📅 Rejalashtirilgan postlar ({len(items)} ta):", reply_markup=kb.back_to_menu()
+        f"📅 Rejalashtirilgan postlar ({offset + 1}-{page_end} / {total} ta):",
+        reply_markup=kb.scheduled_nav(offset, SCHEDULED_PAGE_SIZE, total),
     )
     for item in items:
         target = datetime.fromisoformat(item["scheduled_time"])
         icon = TYPE_ICON.get(item["content_type"], "📄")
         preview = item["text"][:120].replace("\n", " ")
+        retry_note = ""
+        if item.get("retry_count"):
+            retry_note = f"\n⚠️ {item['retry_count']} marta joylashga urinildi, qayta rejalashtirilgan."
         text = (
             f"{icon} <b>{item['content_type'].upper()}</b> — "
-            f"{target.strftime('%d.%m.%Y %H:%M')}\n\n{preview}..."
+            f"{target.strftime('%d.%m.%Y %H:%M')}\n\n{preview}...{retry_note}"
         )
         await callback.message.answer(text, reply_markup=kb.scheduled_item_actions(item["id"]))
+    await callback.answer()
+
+    failed = await db.get_failed_list()
+    if failed:
+        await _show_failed_list(callback.message, failed)
+
+
+async def _show_failed_list(message: Message, failed: list):
+    await message.answer(f"❌ Muvaffaqiyatsiz bo'lgan postlar ({len(failed)} ta):")
+    for item in failed:
+        icon = TYPE_ICON.get(item["content_type"], "📄")
+        preview = item["text"][:120].replace("\n", " ")
+        error = (item.get("last_error") or "")[:200]
+        text = (
+            f"{icon} <b>{item['content_type'].upper()}</b> — muvaffaqiyatsiz\n\n"
+            f"{preview}...\n\n⚠️ <i>{error}</i>"
+        )
+        await message.answer(text, reply_markup=kb.failed_item_actions(item["id"]))
+
+
+@router.callback_query(F.data.startswith("retry_failed:"))
+async def retry_failed(callback: CallbackQuery):
+    content_id = int(callback.data.split(":")[1])
+    await db.retry_failed(content_id)
+    await callback.message.edit_text("🔁 Post qayta rejalashtirildi, tez orada joylanadi.")
     await callback.answer()
 
 

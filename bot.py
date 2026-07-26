@@ -4,21 +4,34 @@ Ishga tushirish: python bot.py
 """
 import asyncio
 import logging
+import os
+from logging.handlers import RotatingFileHandler
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import ErrorEvent
 
 from config import BOT_TOKEN, ADMIN_IDS
 from database import init_db
 from handlers import main_router
 from scheduler import start_scheduler
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+_formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+
+_console_handler = logging.StreamHandler()
+_console_handler.setFormatter(_formatter)
+
+_file_handler = RotatingFileHandler(
+    os.path.join(LOGS_DIR, "bot.log"), maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
 )
+_file_handler.setFormatter(_formatter)
+
+logging.basicConfig(level=logging.INFO, handlers=[_console_handler, _file_handler])
 logger = logging.getLogger(__name__)
 
 
@@ -41,6 +54,21 @@ async def main():
     )
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(main_router)
+
+    @dp.error()
+    async def global_error_handler(event: ErrorEvent):
+        """Handlerda kutilmagan xatolik chiqsa, botni yiqitmasdan log qiladi va adminga xabar beradi."""
+        logger.exception(
+            "Handlerda kutilmagan xatolik: %s", event.exception, exc_info=event.exception
+        )
+        for admin_id in ADMIN_IDS:
+            try:
+                await bot.send_message(
+                    admin_id, f"⚠️ Ichki xatolik yuz berdi:\n<code>{event.exception}</code>"
+                )
+            except Exception:
+                pass
+        return True
 
     scheduler = start_scheduler(bot)
     logger.info("Rejalashtiruvchi ishga tushdi.")

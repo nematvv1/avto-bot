@@ -15,6 +15,11 @@ import ai_service
 from publisher import publish_content
 from states import ContentCreation
 from handlers.filters import IsAdmin
+from utils import safe_truncate_html
+from config import MAX_GENERATIONS_PER_HOUR, POST_CONTACT_FOOTER
+
+MIN_QUIZ_OPTIONS = 2
+MAX_QUIZ_OPTIONS = 10
 
 router = Router()
 router.message.filter(IsAdmin())
@@ -22,13 +27,12 @@ router.callback_query.filter(IsAdmin())
 
 
 def _delete_image_files(image_path: str) -> None:
-    """Rasm fayli va uning branded versiyasini diskdan o'chiradi."""
-    for path in [image_path]:
-        try:
-            if path and os.path.exists(path):
-                os.remove(path)
-        except OSError:
-            pass
+    """Rasm faylini diskdan o'chiradi."""
+    try:
+        if image_path and os.path.exists(image_path):
+            os.remove(image_path)
+    except OSError:
+        pass
 
 
 TYPE_LABELS = {"post": "📝 Post", "quiz": "🧠 Quiz", "poll": "📊 So'rovnoma"}
@@ -107,19 +111,32 @@ async def image_choice(callback: CallbackQuery, state: FSMContext):
 
 # ---------- 4. AI generatsiya va preview ----------
 
-async def _generate_and_preview(message: Message, state: FSMContext, bot: Bot):
+async def _generate_and_preview(message: Message, state: FSMContext, bot: Bot,
+                                 previous_text: str | None = None):
     data = await state.get_data()
     content_type = data["content_type"]
     topic = data.get("topic")
     want_image = data.get("want_image", False)
+
+    recent = await db.count_recent_generations(60, created_by=message.chat.id)
+    if recent >= MAX_GENERATIONS_PER_HOUR:
+        await message.answer(
+            f"⏳ Bir soat ichida generatsiya limiti ({MAX_GENERATIONS_PER_HOUR} ta) "
+            "tugadi. Iltimos, keyinroq urinib ko'ring.",
+            reply_markup=kb.back_to_menu(),
+        )
+        await state.clear()
+        return
 
     await state.set_state(ContentCreation.generating)
     status_msg = await message.answer("⏳ AI kontent tayyorlamoqda, biroz kuting...")
 
     try:
         if content_type == "post":
-            generated = await ai_service.generate_post(topic)
+            generated = await ai_service.generate_post(topic, previous_text=previous_text)
             text = f"<b>{generated['title']}</b>\n\n{generated['text']}"
+            if POST_CONTACT_FOOTER:
+                text += f"\n\n{POST_CONTACT_FOOTER}"
             image_path = None
             if want_image:
                 await status_msg.edit_text("🎨 Rasm generatsiya qilinmoqda...")
@@ -130,7 +147,7 @@ async def _generate_and_preview(message: Message, state: FSMContext, bot: Bot):
             )
 
         elif content_type == "quiz":
-            generated = await ai_service.generate_quiz(topic)
+            generated = await ai_service.generate_quiz(topic, previous_text=previous_text)
             content_id = await db.add_content(
                 content_type="quiz", topic=topic, text=generated["question"],
                 options=generated["options"], correct_option=generated["correct_index"],
@@ -140,12 +157,20 @@ async def _generate_and_preview(message: Message, state: FSMContext, bot: Bot):
             await db.update_content_text(content_id, generated["question"])
 
         else:  # poll
-            generated = await ai_service.generate_poll(topic)
+            generated = await ai_service.generate_poll(topic, previous_text=previous_text)
             content_id = await db.add_content(
                 content_type="poll", topic=topic, text=generated["question"],
                 options=generated["options"], created_by=message.chat.id,
             )
 
+    except ai_service.ContentValidationError as e:
+        await status_msg.edit_text(
+            f"⚠️ AI noto'g'ri formatda javob qaytardi: {e}\n"
+            "Iltimos, qaytadan urinib ko'ring.",
+            reply_markup=kb.back_to_menu(),
+        )
+        await state.clear()
+        return
     except Exception as e:
         err_str = str(e).lower()
         if "insufficient_quota" in err_str or "quota" in err_str:
@@ -180,12 +205,13 @@ async def _show_preview(message: Message, state: FSMContext, bot: Bot, content_i
             photo = FSInputFile(content["image_path"])
             await bot.send_photo(
                 chat_id=message.chat.id, photo=photo,
-                caption=caption[:1024], reply_markup=kb.preview_actions(content_id),
+                caption=safe_truncate_html(caption, 1024),
+                reply_markup=kb.preview_actions(content_id, "post"),
             )
         else:
             await bot.send_message(
                 chat_id=message.chat.id, text=caption,
-                reply_markup=kb.preview_actions(content_id),
+                reply_markup=kb.preview_actions(content_id, "post"),
             )
 
     elif content["content_type"] == "quiz":
@@ -202,7 +228,7 @@ async def _show_preview(message: Message, state: FSMContext, bot: Bot, content_i
             f"💡 <i>{explanation}</i>"
         )
         await bot.send_message(
-            chat_id=message.chat.id, text=text, reply_markup=kb.preview_actions(content_id)
+            chat_id=message.chat.id, text=text, reply_markup=kb.preview_actions(content_id, "quiz")
         )
 
     else:  # poll
@@ -210,7 +236,7 @@ async def _show_preview(message: Message, state: FSMContext, bot: Bot, content_i
         options_text = "\n".join(f"▫️ {opt}" for opt in options)
         text = f"👀 <b>So'rovnoma ko'rib chiqing:</b>\n\n❓ {content['text']}\n\n{options_text}"
         await bot.send_message(
-            chat_id=message.chat.id, text=text, reply_markup=kb.preview_actions(content_id)
+            chat_id=message.chat.id, text=text, reply_markup=kb.preview_actions(content_id, "poll")
         )
 
 
@@ -246,12 +272,13 @@ async def reject_content(callback: CallbackQuery, state: FSMContext):
 async def regenerate_content(callback: CallbackQuery, state: FSMContext):
     content_id = int(callback.data.split(":")[1])
     old_content = await db.get_content(content_id)
+    previous_text = old_content["text"] if old_content else None
     # Eski rasm faylini o'chirish
     if old_content and old_content.get("image_path"):
         _delete_image_files(old_content["image_path"])
     await db.delete_content(content_id)
     await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.answer("🔄 Qayta generatsiya qilinmoqda...")
+    await callback.answer("🔄 Boshqa variant tayyorlanmoqda...")
 
     # callback.message — bu bot xabari, foydalanuvchi chat.id uchun from_user ishlatamiz
     class _FakeMsg:
@@ -265,7 +292,7 @@ async def regenerate_content(callback: CallbackQuery, state: FSMContext):
             return await self._msg.answer(*args, **kwargs)
 
     fake_message = _FakeMsg(callback.message, callback.from_user.id)
-    await _generate_and_preview(fake_message, state, callback.bot)
+    await _generate_and_preview(fake_message, state, callback.bot, previous_text=previous_text)
 
 
 @router.callback_query(ContentCreation.previewing, F.data.startswith("edit:"))
@@ -283,7 +310,113 @@ async def edit_content_start(callback: CallbackQuery, state: FSMContext):
 async def edit_content_receive(message: Message, state: FSMContext):
     data = await state.get_data()
     content_id = data["editing_content_id"]
-    await db.update_content_text(content_id, message.text)
+    new_text = message.text
+    warning = ""
+    if len(new_text) > 4096:
+        new_text = safe_truncate_html(new_text, 4096)
+        warning = "\n\n⚠️ Matn juda uzun edi, 4096 belgigacha qisqartirildi."
+    await db.update_content_text(content_id, new_text)
     await state.set_state(ContentCreation.previewing)
-    await message.answer("✅ Matn yangilandi.")
+    await message.answer(f"✅ Matn yangilandi.{warning}")
+    await _show_preview(message, state, message.bot, content_id)
+
+
+# ---------- 6. Variantlarni tahrirlash (quiz/poll) ----------
+
+@router.callback_query(ContentCreation.previewing, F.data.startswith("editopts:"))
+async def edit_options_start(callback: CallbackQuery, state: FSMContext):
+    content_id = int(callback.data.split(":")[1])
+    content = await db.get_content(content_id)
+    if not content:
+        await callback.answer("Topilmadi.", show_alert=True)
+        return
+    options = json.loads(content["options_json"] or "[]")
+    limits = (
+        f"{MIN_QUIZ_OPTIONS}-{MAX_QUIZ_OPTIONS}"
+        if content["content_type"] == "quiz"
+        else f"{ai_service.MIN_POLL_OPTIONS}-{ai_service.MAX_POLL_OPTIONS}"
+    )
+    await state.update_data(editing_content_id=content_id)
+    await state.set_state(ContentCreation.waiting_edit_options)
+    await callback.message.answer(
+        "🔡 Yangi variantlarni har birini alohida qatorda yozing "
+        f"({limits} ta variant, har biri max 90 belgi).\n\n"
+        "Hozirgi variantlar:\n" + "\n".join(f"• {o}" for o in options)
+    )
+    await callback.answer()
+
+
+@router.message(ContentCreation.waiting_edit_options)
+async def edit_options_receive(message: Message, state: FSMContext):
+    data = await state.get_data()
+    content_id = data["editing_content_id"]
+    content = await db.get_content(content_id)
+    if not content:
+        await message.answer("⚠️ Kontent topilmadi.", reply_markup=kb.main_menu())
+        await state.clear()
+        return
+
+    options = [line.strip() for line in message.text.split("\n") if line.strip()]
+    options = [o[:90] for o in options]
+
+    if content["content_type"] == "quiz":
+        lo, hi = MIN_QUIZ_OPTIONS, MAX_QUIZ_OPTIONS
+    else:
+        lo, hi = ai_service.MIN_POLL_OPTIONS, ai_service.MAX_POLL_OPTIONS
+
+    if not (lo <= len(options) <= hi):
+        await message.answer(
+            f"⚠️ {len(options)} ta variant kiritdingiz, {lo}-{hi} ta bo'lishi kerak. "
+            "Qaytadan urinib ko'ring (har biri alohida qatorda)."
+        )
+        return
+
+    if content["content_type"] == "quiz":
+        await db.update_options(content_id, options)
+        await state.set_state(ContentCreation.choosing_correct_option)
+        await message.answer(
+            "✅ Variantlar yangilandi. Endi to'g'ri javobni tanlang:",
+            reply_markup=kb.correct_option_menu(content_id, options),
+        )
+    else:
+        await db.update_options(content_id, options)
+        await state.set_state(ContentCreation.previewing)
+        await message.answer("✅ Variantlar yangilandi.")
+        await _show_preview(message, state, message.bot, content_id)
+
+
+@router.callback_query(ContentCreation.choosing_correct_option, F.data.startswith("setcorrect:"))
+async def set_correct_option(callback: CallbackQuery, state: FSMContext):
+    _, content_id_str, idx_str = callback.data.split(":")
+    content_id = int(content_id_str)
+    await db.update_correct_option(content_id, int(idx_str))
+    await state.set_state(ContentCreation.previewing)
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer("✅ To'g'ri javob belgilandi.")
+    await _show_preview(callback.message, state, callback.bot, content_id)
+
+
+# ---------- 7. Izohni tahrirlash (quiz) ----------
+
+@router.callback_query(ContentCreation.previewing, F.data.startswith("editexpl:"))
+async def edit_explanation_start(callback: CallbackQuery, state: FSMContext):
+    content_id = int(callback.data.split(":")[1])
+    await state.update_data(editing_content_id=content_id)
+    await state.set_state(ContentCreation.waiting_edit_explanation)
+    await callback.message.answer("💬 Yangi izohni yozing (max 200 belgi):")
+    await callback.answer()
+
+
+@router.message(ContentCreation.waiting_edit_explanation)
+async def edit_explanation_receive(message: Message, state: FSMContext):
+    data = await state.get_data()
+    content_id = data["editing_content_id"]
+    explanation = message.text.strip()
+    warning = ""
+    if len(explanation) > 200:
+        explanation = explanation[:199] + "…"
+        warning = "\n\n⚠️ Izoh 200 belgigacha qisqartirildi."
+    await db.update_explanation(content_id, explanation)
+    await state.set_state(ContentCreation.previewing)
+    await message.answer(f"✅ Izoh yangilandi.{warning}")
     await _show_preview(message, state, message.bot, content_id)

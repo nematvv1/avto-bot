@@ -4,3 +4,8 @@ generated_images/*
 .env
 __pycache__/
 *.pyc
+logs/
+venv/
+.venv/
+.pytest_cache/
+*.egg-info/

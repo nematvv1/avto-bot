@@ -13,6 +13,9 @@ class ContentCreation(StatesGroup):
     generating = State()             # AI generatsiya qilmoqda
     previewing = State()             # natija ko'rsatilmoqda, tasdiqlash kutilmoqda
     waiting_edit_text = State()      # foydalanuvchi tahrirlangan matnni yozmoqda
+    waiting_edit_options = State()   # foydalanuvchi quiz/poll variantlarini yozmoqda
+    waiting_edit_explanation = State()  # foydalanuvchi quiz izohini yozmoqda
+    choosing_correct_option = State()   # variantlar yangilangach, to'g'ri javobni tanlash
 
 
 class Scheduling(StatesGroup):
