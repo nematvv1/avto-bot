@@ -152,6 +152,26 @@ journalctl -u channel_bot -f   # loglarni kuzatish
 
 Bot yiqilib qolsa, systemd uni avtomatik qayta ishga tushiradi (`Restart=always`).
 
+### Render.com orqali
+
+Bot Telegram'ga **polling** orqali ulanadi (webhook emas), lekin Render'ning "Web Service"
+turi ishlash uchun `$PORT`'ni tinglashni talab qiladi — shuning uchun `bot.py` ichida
+oddiy health-check server (`start_web_server()`) ham ishga tushadi, u polling'ga xalaqit bermaydi.
+
+1. Repo'ni GitHub'ga push qiling (allaqachon qilingan bo'lsa, o'tkazib yuboring).
+2. Render dashboard'da **New → Blueprint** tanlang va shu repo'ni ko'rsating — `render.yaml`
+   avtomatik o'qiladi (Web Service + 1GB persistent disk `/var/data`da).
+3. Render so'ragan maxfiy environment variable'larni kiriting: `BOT_TOKEN`, `CHANNEL_ID`,
+   `ADMIN_IDS`, `OPENAI_API_KEY`, `CHANNEL_TOPIC`, `IMAGE_STYLE`, `BRAND_NAME`,
+   `POST_CONTACT_FOOTER` (`.env` faylingizdagi qiymatlarni ko'chiring).
+4. Deploy tugagach, bot avtomatik ishga tushadi. `DB_PATH` va `IMAGES_DIR` `render.yaml`da
+   allaqachon persistent disk (`/var/data`)ga yo'naltirilgan — har qayta deploy'da baza va
+   rasmlar **yo'qolmaydi**.
+
+Blueprint ishlatmasdan qo'lda "Web Service" yaratmoqchi bo'lsangiz: Build Command
+`pip install -r requirements.txt`, Start Command `python bot.py`, so'ng "Disks" bo'limidan
+diskni qo'shib, `DB_PATH`/`IMAGES_DIR`ni shu disk yo'liga ko'rsating.
+
 ---
 
 ## 🧪 Testlar

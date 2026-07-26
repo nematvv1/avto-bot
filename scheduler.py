@@ -14,13 +14,11 @@ from aiogram import Bot
 import database as db
 from publisher import publish_content
 from config import (
-    ADMIN_IDS, SCHEDULER_CHECK_INTERVAL, TIMEZONE, IMAGE_CLEANUP_DAYS,
+    ADMIN_IDS, SCHEDULER_CHECK_INTERVAL, TIMEZONE, IMAGE_CLEANUP_DAYS, IMAGES_DIR,
     SCHEDULE_MAX_RETRIES, SCHEDULE_RETRY_BASE_MINUTES, SCHEDULE_RETRY_MAX_MINUTES,
 )
 
 logger = logging.getLogger(__name__)
-
-IMAGES_DIR = "generated_images"
 
 
 async def _notify_admins(bot: Bot, text: str):

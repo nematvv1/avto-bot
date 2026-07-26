@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: channel-bot
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    disk:
+      name: channel-bot-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: CHANNEL_ID
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: TEXT_MODEL
+        value: gpt-5.5
+      - key: IMAGE_MODEL
+        value: gpt-image-2
+      - key: DB_PATH
+        value: /var/data/bot_database.db
+      - key: IMAGES_DIR
+        value: /var/data/generated_images
+      - key: CHANNEL_TOPIC
+        sync: false
+      - key: IMAGE_STYLE
+        sync: false
+      - key: IMAGE_SIZE
+        value: 1536x1024
+      - key: ADD_BRANDING
+        value: "true"
+      - key: BRAND_NAME
+        sync: false
+      - key: LOGO_PATH
+        value: assets/logo.png
+      - key: BRAND_ACCENT_COLOR
+        value: "#2033E9"
+      - key: TIMEZONE
+        value: Asia/Tashkent
+      - key: POLL_ALLOWS_MULTIPLE
+        value: "false"
+      - key: IMAGE_CLEANUP_DAYS
+        value: "7"
+      - key: POST_CONTACT_FOOTER
+        sync: false
+      - key: SCHEDULE_MAX_RETRIES
+        value: "5"
+      - key: SCHEDULE_RETRY_BASE_MINUTES
+        value: "2"
+      - key: SCHEDULE_RETRY_MAX_MINUTES
+        value: "60"
+      - key: MAX_GENERATIONS_PER_HOUR
+        value: "20"
+      - key: SCHEDULED_PAGE_SIZE
+        value: "8"

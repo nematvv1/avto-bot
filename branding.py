@@ -7,10 +7,10 @@ logotip dumaloq burchakli (rounded), qattiq ajratgich yo'q.
 import os
 from PIL import Image, ImageDraw, ImageFont
 
-from config import BRAND_NAME, LOGO_PATH, ADD_BRANDING, BRAND_ACCENT_COLOR
+from config import BRAND_NAME, LOGO_PATH, ADD_BRANDING, BRAND_ACCENT_COLOR, IMAGES_DIR
 
 FONT_PATH = os.path.join(os.path.dirname(__file__), "assets", "fonts", "Outfit-Bold.ttf")
-BRANDED_DIR = "generated_images"
+BRANDED_DIR = IMAGES_DIR
 
 
 def _hex_to_rgba(hex_color: str, alpha: int = 255) -> tuple:

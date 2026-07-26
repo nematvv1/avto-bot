@@ -8,12 +8,13 @@ import base64
 import os
 import uuid
 from openai import AsyncOpenAI
-from config import OPENAI_API_KEY, TEXT_MODEL, IMAGE_MODEL, CHANNEL_TOPIC, IMAGE_STYLE, IMAGE_SIZE
+from config import (
+    OPENAI_API_KEY, TEXT_MODEL, IMAGE_MODEL, CHANNEL_TOPIC, IMAGE_STYLE, IMAGE_SIZE, IMAGES_DIR,
+)
 from branding import add_branding
 
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
-IMAGES_DIR = "generated_images"
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
 MIN_POLL_OPTIONS = 2

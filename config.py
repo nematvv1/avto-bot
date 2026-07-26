@@ -36,6 +36,11 @@ IMAGE_MODEL = os.getenv("IMAGE_MODEL", "gpt-image-2")
 # --- Bot ichki sozlamalari ---
 DB_PATH = os.getenv("DB_PATH", "bot_database.db")
 
+# Generatsiya qilingan (va brendlangan) rasmlar saqlanadigan papka.
+# Render kabi platformalarda bu qiymatni doimiy diskka (persistent disk) yo'naltiring,
+# aks holda har deploy'da rasmlar o'chib ketadi.
+IMAGES_DIR = os.getenv("IMAGES_DIR", "generated_images")
+
 # Kanal mavzusi/yo'nalishi - AI kontent generatsiya qilganda shu kontekstdan foydalanadi
 CHANNEL_TOPIC = os.getenv("CHANNEL_TOPIC", "IT, dasturlash va texnologiyalar")
 
