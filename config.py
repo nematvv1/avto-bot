@@ -103,3 +103,10 @@ MAX_GENERATIONS_PER_HOUR = int(os.getenv("MAX_GENERATIONS_PER_HOUR", "20"))
 
 # Rejalashtirilganlar ro'yxatida bir sahifada nechta element ko'rsatiladi
 SCHEDULED_PAGE_SIZE = int(os.getenv("SCHEDULED_PAGE_SIZE", "8"))
+
+# Admin bo'lmagan foydalanuvchiga "ruxsat yo'q" xabari bilan birga yuboriladigan stiker
+# (Telegram'ning rasmiy "AnimatedEmojies" to'plamidagi 😔 stikeri)
+UNAUTHORIZED_STICKER_ID = os.getenv(
+    "UNAUTHORIZED_STICKER_ID",
+    "CAACAgEAAxUAAWpme9wsVw8iqmKKezg5j3DKDd1eAAJxAgAC8LkwR76SIULuzaFKPQQ",
+)
