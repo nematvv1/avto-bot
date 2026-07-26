@@ -10,6 +10,7 @@ from logging.handlers import RotatingFileHandler
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ErrorEvent
 from aiohttp import web
@@ -78,6 +79,19 @@ async def main():
     @dp.error()
     async def global_error_handler(event: ErrorEvent):
         """Handlerda kutilmagan xatolik chiqsa, botni yiqitmasdan log qiladi va adminga xabar beradi."""
+        # Tugma ikki marta bosilganda yoki xabar allaqachon bir xil bo'lganda Telegram shu
+        # xatoni qaytaradi — bu haqiqiy xato emas, shunchaki e'tiborsiz qoldiramiz.
+        if isinstance(event.exception, TelegramBadRequest) and "message is not modified" in str(
+            event.exception
+        ):
+            callback_query = getattr(event.update, "callback_query", None)
+            if callback_query:
+                try:
+                    await bot.answer_callback_query(callback_query.id)
+                except Exception:
+                    pass
+            return True
+
         logger.exception(
             "Handlerda kutilmagan xatolik: %s", event.exception, exc_info=event.exception
         )
