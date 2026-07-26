@@ -12,11 +12,31 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ErrorEvent
+from aiohttp import web
 
 from config import BOT_TOKEN, ADMIN_IDS
 from database import init_db
 from handlers import main_router
 from scheduler import start_scheduler
+
+# Render "Web Service" turi $PORT'ni tinglashni talab qiladi, aks holda deploy'ni
+# muvaffaqiyatsiz deb hisoblaydi — bot o'zi esa Telegram bilan polling orqali ishlaydi,
+# bu server faqat Render'ning health-check'iga javob berish uchun kerak.
+PORT = int(os.environ.get("PORT", 8080))
+
+
+async def _health_check(request: web.Request) -> web.Response:
+    return web.Response(text="Bot is running!")
+
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", _health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+    logger.info(f"Health-check server {PORT}-portda ishga tushdi.")
 
 LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
 os.makedirs(LOGS_DIR, exist_ok=True)
@@ -72,6 +92,8 @@ async def main():
 
     scheduler = start_scheduler(bot)
     logger.info("Rejalashtiruvchi ishga tushdi.")
+
+    await start_web_server()
 
     for admin_id in ADMIN_IDS:
         try:
