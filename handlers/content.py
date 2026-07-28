@@ -16,7 +16,7 @@ from publisher import publish_content
 from states import ContentCreation
 from handlers.filters import IsAdmin
 from utils import safe_truncate_html
-from config import MAX_GENERATIONS_PER_HOUR, CHANNEL_TARGETS, DEFAULT_TARGET_KEY, get_target
+from config import MAX_GENERATIONS_PER_HOUR, DEFAULT_TARGET_KEY
 
 MIN_QUIZ_OPTIONS = 2
 MAX_QUIZ_OPTIONS = 10
@@ -35,6 +35,18 @@ def _delete_image_files(image_path: str) -> None:
         pass
 
 
+def _pick_target(all_targets: dict, key: str | None) -> dict:
+    """Berilgan target kaliti uchun sozlamalarni qaytaradi (topilmasa/berilmasa — birinchisi)."""
+    if key and key in all_targets:
+        return all_targets[key]
+    if all_targets:
+        return next(iter(all_targets.values()))
+    return {
+        "label": "Kanal", "channel_id": "", "topic": "", "brand_name": "Kanal",
+        "logo_path": "", "accent_color": "#2033E9", "contact_footer": "",
+    }
+
+
 TYPE_LABELS = {"post": "📝 Post", "quiz": "🧠 Quiz", "poll": "📊 So'rovnoma"}
 
 
@@ -43,14 +55,16 @@ TYPE_LABELS = {"post": "📝 Post", "quiz": "🧠 Quiz", "poll": "📊 So'rovnom
 @router.callback_query(F.data == "menu:new_content")
 async def start_new_content(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    if len(CHANNEL_TARGETS) > 1:
+    all_targets = await db.get_all_targets()
+    if len(all_targets) > 1:
         await state.set_state(ContentCreation.choosing_target)
         await callback.message.edit_text(
             "Qaysi kanal/tashkilot uchun kontent yaratamiz?",
-            reply_markup=kb.target_choice_menu(CHANNEL_TARGETS),
+            reply_markup=kb.target_choice_menu(all_targets),
         )
     else:
-        await state.update_data(target_key=DEFAULT_TARGET_KEY)
+        default_key = next(iter(all_targets), DEFAULT_TARGET_KEY)
+        await state.update_data(target_key=default_key)
         await state.set_state(ContentCreation.choosing_type)
         await callback.message.edit_text(
             "Qaysi turdagi kontent yaratamiz?", reply_markup=kb.content_type_menu()
@@ -61,12 +75,13 @@ async def start_new_content(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(ContentCreation.choosing_target, F.data.startswith("target:"))
 async def choose_target(callback: CallbackQuery, state: FSMContext):
     target_key = callback.data.split(":", 1)[1]
-    if target_key not in CHANNEL_TARGETS:
+    all_targets = await db.get_all_targets()
+    if target_key not in all_targets:
         await callback.answer("Noma'lum tanlov.", show_alert=True)
         return
     await state.update_data(target_key=target_key)
     await state.set_state(ContentCreation.choosing_type)
-    label = CHANNEL_TARGETS[target_key]["label"]
+    label = all_targets[target_key]["label"]
     await callback.message.edit_text(
         f"🏷 {label}\n\nQaysi turdagi kontent yaratamiz?", reply_markup=kb.content_type_menu()
     )
@@ -129,7 +144,8 @@ async def _brainstorm_continue(message: Message, state: FSMContext):
     data = await state.get_data()
     history = data.get("brainstorm_history", [])
     turns = data.get("brainstorm_turns", 0)
-    target = get_target(data.get("target_key"))
+    all_targets = await db.get_all_targets()
+    target = _pick_target(all_targets, data.get("target_key"))
 
     thinking_msg = await message.answer("🤔 ...")
     try:
@@ -189,7 +205,8 @@ async def _generate_and_preview(message: Message, state: FSMContext, bot: Bot,
     topic = data.get("topic")
     want_image = data.get("want_image", False)
     target_key = data.get("target_key")
-    target = get_target(target_key)
+    all_targets = await db.get_all_targets()
+    target = _pick_target(all_targets, target_key)
 
     recent = await db.count_recent_generations(60, created_by=message.chat.id)
     if recent >= MAX_GENERATIONS_PER_HOUR:
@@ -280,9 +297,10 @@ async def _generate_and_preview(message: Message, state: FSMContext, bot: Bot,
 async def _show_preview(message: Message, state: FSMContext, bot: Bot, content_id: int):
     content = await db.get_content(content_id)
     data = await state.get_data()
+    all_targets = await db.get_all_targets()
     target_prefix = ""
-    if len(CHANNEL_TARGETS) > 1:
-        target_prefix = f"🏷 {get_target(content.get('target_key'))['label']}\n"
+    if len(all_targets) > 1:
+        target_prefix = f"🏷 {_pick_target(all_targets, content.get('target_key'))['label']}\n"
 
     if content["content_type"] == "post":
         caption = f"{target_prefix}👀 <b>Ko'rib chiqing:</b>\n\n" + content["text"]

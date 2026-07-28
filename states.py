@@ -22,3 +22,12 @@ class ContentCreation(StatesGroup):
 
 class Scheduling(StatesGroup):
     waiting_datetime = State()       # foydalanuvchi sana/vaqt yozmoqda
+
+
+class SettingsManagement(StatesGroup):
+    waiting_new_admin_id = State()          # yangi admin uchun Telegram ID kutilmoqda
+    waiting_new_target_key = State()        # yangi kanal uchun qisqa kalit so'z
+    waiting_new_target_label = State()      # yangi kanal uchun yorliq (menyuda ko'rinadigan)
+    waiting_new_target_channel_id = State()  # yangi kanal ID/username
+    waiting_new_target_topic = State()      # yangi kanal mavzusi/tavsifi
+    waiting_new_target_brand_name = State()  # yangi kanal uchun rasmlardagi brend nomi

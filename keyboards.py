@@ -135,3 +135,56 @@ def confirm_delete_scheduled(content_id: int) -> InlineKeyboardMarkup:
     kb.button(text="❌ Yo'q, bekor", callback_data=f"cancel_delete:{content_id}")
     kb.adjust(2)
     return kb.as_markup()
+
+
+# ---------- Sozlamalar: adminlar va kanallar boshqaruvi ----------
+
+def settings_menu() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="👥 Adminlar", callback_data="settings:admins")
+    kb.button(text="📡 Kanallar", callback_data="settings:targets")
+    kb.button(text="⬅️ Bosh menyu", callback_data="menu:main")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def admins_action_menu(runtime_admin_ids: list) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    for admin_id in runtime_admin_ids:
+        kb.button(text=f"🗑 {admin_id} ni o'chirish", callback_data=f"ask_remove_admin:{admin_id}")
+    kb.button(text="➕ Admin qo'shish", callback_data="add_admin")
+    kb.button(text="⬅️ Sozlamalar", callback_data="menu:settings")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def confirm_remove_admin(admin_id: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Ha, o'chir", callback_data=f"remove_admin:{admin_id}")
+    kb.button(text="❌ Yo'q, bekor", callback_data="settings:admins")
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+def targets_action_menu(runtime_target_keys: list) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    for key in runtime_target_keys:
+        kb.button(text=f"🗑 {key} ni o'chirish", callback_data=f"ask_remove_target:{key}")
+    kb.button(text="➕ Kanal qo'shish", callback_data="add_target")
+    kb.button(text="⬅️ Sozlamalar", callback_data="menu:settings")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def confirm_remove_target(key: str) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Ha, o'chir", callback_data=f"remove_target:{key}")
+    kb.button(text="❌ Yo'q, bekor", callback_data="settings:targets")
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+def cancel_only_menu(back_callback: str = "menu:settings") -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="❌ Bekor qilish", callback_data=back_callback)
+    return kb.as_markup()

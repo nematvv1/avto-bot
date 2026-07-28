@@ -8,7 +8,7 @@ from datetime import datetime
 
 import aiosqlite
 
-from config import DB_PATH
+from config import DB_PATH, ADMIN_IDS, CHANNEL_TARGETS
 
 
 @asynccontextmanager
@@ -289,3 +289,78 @@ async def get_stats():
             by_type[row["content_type"]] = row["cnt"]
         stats["by_type"] = by_type
         return stats
+
+
+# --- Runtime sozlamalar (settings jadvali orqali) ---
+# .env'dagi ADMIN_IDS/TARGETS "doimiy" (bootstrap) hisoblanadi va faqat serverda .env
+# tahrirlanib qayta ishga tushirilsagina o'zgaradi. Bot orqali admin/kanal qo'shilsa,
+# shu yerga (bazaga) yoziladi va qayta ishga tushirilgandan keyin ham saqlanib qoladi.
+
+async def _get_setting_json(key: str, default):
+    async with _connect() as db:
+        cursor = await db.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = await cursor.fetchone()
+        if not row:
+            return default
+        try:
+            return json.loads(row[0])
+        except (json.JSONDecodeError, TypeError):
+            return default
+
+
+async def _set_setting_json(key: str, value):
+    async with _connect() as db:
+        await db.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, json.dumps(value, ensure_ascii=False)),
+        )
+        await db.commit()
+
+
+async def get_runtime_admin_ids() -> list[int]:
+    """Bot orqali (Sozlamalar > Adminlar) qo'shilgan qo'shimcha adminlar."""
+    return await _get_setting_json("runtime_admin_ids", [])
+
+
+async def add_runtime_admin(user_id: int):
+    admins = await get_runtime_admin_ids()
+    if user_id not in admins:
+        admins.append(user_id)
+        await _set_setting_json("runtime_admin_ids", admins)
+
+
+async def remove_runtime_admin(user_id: int):
+    admins = await get_runtime_admin_ids()
+    if user_id in admins:
+        admins.remove(user_id)
+        await _set_setting_json("runtime_admin_ids", admins)
+
+
+async def get_runtime_targets() -> dict:
+    """Bot orqali (Sozlamalar > Kanallar) qo'shilgan qo'shimcha kanal/target'lar."""
+    return await _get_setting_json("runtime_targets", {})
+
+
+async def add_runtime_target(key: str, target: dict):
+    targets = await get_runtime_targets()
+    targets[key] = target
+    await _set_setting_json("runtime_targets", targets)
+
+
+async def remove_runtime_target(key: str):
+    targets = await get_runtime_targets()
+    if key in targets:
+        del targets[key]
+        await _set_setting_json("runtime_targets", targets)
+
+
+async def get_all_admin_ids() -> list[int]:
+    """.env'dagi (doimiy) + bot orqali qo'shilgan adminlar birlashtirilgan ro'yxati."""
+    return list(ADMIN_IDS) + await get_runtime_admin_ids()
+
+
+async def get_all_targets() -> dict:
+    """.env'dagi (doimiy) + bot orqali qo'shilgan kanal/target'lar birlashtirilgan lug'ati."""
+    runtime = await get_runtime_targets()
+    return {**CHANNEL_TARGETS, **runtime}

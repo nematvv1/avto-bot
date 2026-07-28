@@ -11,6 +11,8 @@ so'ng (darhol yoki rejalashtirilgan vaqtda) kanalga o'zi joylaydigan bot.
 - 📊 **So'rovnoma** — obunachilardan fikr so'rash
 - 🏷 **Bir nechta kanal/tashkilot** — bitta bot bir necha turli brendga (har biri o'z kanali,
   mavzusi, logotipi bilan) xizmat qila oladi, kontent yaratishda admin tanlaydi
+- ⚙️ **Sozlamalar menyusi orqali** — `.env` faylini tahrirlamasdan, to'g'ridan-to'g'ri botdan
+  yangi admin yoki yangi kanal/tashkilot qo'shish (va bot orqali qo'shilganlarini o'chirish)
 - 💬 **AI bilan suhbat orqali aniqlashtirish** — xom g'oya yozsangiz, AI kerak bo'lsa
   qo'shimcha savollar berib, mavzuni to'liq tushungach mukammal kontent tuzadi
 - 🎯 Mavzuni **siz belgilaysiz** yoki **AI o'zi tanlaydi** (kanal yo'nalishidan kelib chiqib)
