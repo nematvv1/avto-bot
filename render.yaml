@@ -12,8 +12,6 @@ services:
     envVars:
       - key: BOT_TOKEN
         sync: false
-      - key: CHANNEL_ID
-        sync: false
       - key: ADMIN_IDS
         sync: false
       - key: OPENAI_API_KEY
@@ -26,28 +24,51 @@ services:
         value: /var/data/bot_database.db
       - key: IMAGES_DIR
         value: /var/data/generated_images
-      - key: CHANNEL_TOPIC
-        sync: false
       - key: IMAGE_STYLE
         sync: false
       - key: IMAGE_SIZE
         value: 1536x1024
       - key: ADD_BRANDING
         value: "true"
-      - key: BRAND_NAME
+      # --- Kanal(lar)/brend(lar): TARGETS + har bir kalit uchun TARGET_<KALIT>_* ---
+      # (bitta kanal yetarli bo'lsa, TARGETS'ni bo'sh qoldirib CHANNEL_ID/CHANNEL_TOPIC/
+      # BRAND_NAME/LOGO_PATH/BRAND_ACCENT_COLOR/POST_CONTACT_FOOTER'ni ishlating)
+      - key: TARGETS
         sync: false
-      - key: LOGO_PATH
+      - key: TARGET_ACADEMY_LABEL
+        sync: false
+      - key: TARGET_ACADEMY_CHANNEL_ID
+        sync: false
+      - key: TARGET_ACADEMY_TOPIC
+        sync: false
+      - key: TARGET_ACADEMY_BRAND_NAME
+        sync: false
+      - key: TARGET_ACADEMY_LOGO_PATH
         value: assets/logo.png
-      - key: BRAND_ACCENT_COLOR
+      - key: TARGET_ACADEMY_ACCENT_COLOR
         value: "#2033E9"
+      - key: TARGET_ACADEMY_CONTACT_FOOTER
+        sync: false
+      - key: TARGET_SCHOOL_LABEL
+        sync: false
+      - key: TARGET_SCHOOL_CHANNEL_ID
+        sync: false
+      - key: TARGET_SCHOOL_TOPIC
+        sync: false
+      - key: TARGET_SCHOOL_BRAND_NAME
+        sync: false
+      - key: TARGET_SCHOOL_LOGO_PATH
+        value: assets/logo.png
+      - key: TARGET_SCHOOL_ACCENT_COLOR
+        value: "#2033E9"
+      - key: TARGET_SCHOOL_CONTACT_FOOTER
+        sync: false
       - key: TIMEZONE
         value: Asia/Tashkent
       - key: POLL_ALLOWS_MULTIPLE
         value: "false"
       - key: IMAGE_CLEANUP_DAYS
         value: "7"
-      - key: POST_CONTACT_FOOTER
-        sync: false
       - key: SCHEDULE_MAX_RETRIES
         value: "5"
       - key: SCHEDULE_RETRY_BASE_MINUTES
