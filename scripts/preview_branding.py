@@ -12,7 +12,6 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from branding import add_branding
-from config import BRAND_NAME, BRAND_ACCENT_COLOR
 
 # 1. Oddiy gradient test rasm yaratish (OpenAIsiz)
 W, H = 1536, 1024

@@ -9,6 +9,10 @@ so'ng (darhol yoki rejalashtirilgan vaqtda) kanalga o'zi joylaydigan bot.
 - 📝 **Post** — sarlavha + matn, xohlasangiz **AI rasm** bilan (GPT Image 2)
 - 🧠 **Quiz** — 4 variantli savol, to'g'ri javob va izoh bilan
 - 📊 **So'rovnoma** — obunachilardan fikr so'rash
+- 🏷 **Bir nechta kanal/tashkilot** — bitta bot bir necha turli brendga (har biri o'z kanali,
+  mavzusi, logotipi bilan) xizmat qila oladi, kontent yaratishda admin tanlaydi
+- 💬 **AI bilan suhbat orqali aniqlashtirish** — xom g'oya yozsangiz, AI kerak bo'lsa
+  qo'shimcha savollar berib, mavzuni to'liq tushungach mukammal kontent tuzadi
 - 🎯 Mavzuni **siz belgilaysiz** yoki **AI o'zi tanlaydi** (kanal yo'nalishidan kelib chiqib)
 - ✅ Har bir kontent kanalga chiqishdan oldin **sizga (adminga) tasdiqlash uchun** yuboriladi
 - ✏️ Tahrirlash, 🔄 qayta generatsiya qilish, ❌ bekor qilish imkoniyati
@@ -106,6 +110,13 @@ cp .env.example .env
 | `ADMIN_IDS` | Sizning Telegram ID raqamingiz. ID bilish uchun [@userinfobot](https://t.me/userinfobot) ga yozing. Bir nechta admin bo'lsa vergul bilan: `111,222` |
 | `OPENAI_API_KEY` | OpenAI API kaliti |
 | `CHANNEL_TOPIC` | Kanalingiz mavzusi (AI shu asosda kontent generatsiya qiladi) |
+
+**Bir nechta kanal/tashkilotga xizmat qilish kerak bo'lsa** (masalan bitta bot ikki xil
+brendni boshqarsa): `TARGETS=kalit1,kalit2` deb belgilang va yuqoridagi `CHANNEL_ID`/
+`CHANNEL_TOPIC`/`BRAND_NAME`/`LOGO_PATH`/`BRAND_ACCENT_COLOR`/`POST_CONTACT_FOOTER` o'rniga
+har bir kalit uchun `TARGET_<KALIT>_CHANNEL_ID`, `TARGET_<KALIT>_TOPIC` va h.k. yozing —
+to'liq namuna `.env.example` faylida ("VARIANT B"). Bir nechta target sozlansa, kontent
+yaratishda bot avval "Qaysi kanal uchun?" deb so'raydi.
 
 ### 4. Botni kanalga admin qilib qo'shish
 
@@ -223,14 +234,17 @@ channel_bot/
 ## 🔄 Ishlash jarayoni (foydalanuvchi nuqtai nazaridan)
 
 1. `/start` → **✨ Yangi kontent yaratish** tugmasi
-2. Turini tanlaysiz: Post / Quiz / So'rovnoma
-3. Mavzuni tanlaysiz: o'zingiz yozasiz yoki AI o'zi tanlasin
-4. (Post uchun) Rasm kerakmi — ha/yo'q
-5. AI kontentni tayyorlaydi va sizga ko'rsatadi
-6. Siz: ✅ Tasdiqlaysiz / ✏️ Matnni tahrirlaysiz / 🔡 Variantlarni tahrirlaysiz (quiz/poll) /
+2. (Bir nechta target sozlangan bo'lsa) Qaysi kanal/tashkilot uchunligini tanlaysiz
+3. Turini tanlaysiz: Post / Quiz / So'rovnoma
+4. Mavzuni tanlaysiz: **o'zingiz yozasiz** yoki **AI o'zi tanlasin**
+   - O'zingiz yozsangiz, xom g'oya yetarli bo'lmasa AI qisqa aniqlashtiruvchi savol(lar)
+     beradi (masalan "qaysi sinf/guruh uchun?"), javob bergach davom etadi
+5. (Post uchun) Rasm kerakmi — ha/yo'q
+6. AI kontentni tayyorlaydi va sizga ko'rsatadi
+7. Siz: ✅ Tasdiqlaysiz / ✏️ Matnni tahrirlaysiz / 🔡 Variantlarni tahrirlaysiz (quiz/poll) /
    💬 Izohni tahrirlaysiz (quiz) / 🔄 Boshqa variant so'raysiz / ❌ Bekor qilasiz
-7. Tasdiqlagach: 🚀 Hozir yuborish yoki 🕒 Vaqt belgilash
-8. Agar rejalashtirilgan bo'lsa — bot belgilangan vaqtda **o'zi** kanalga joylaydi
+8. Tasdiqlagach: 🚀 Hozir yuborish yoki 🕒 Vaqt belgilash
+9. Agar rejalashtirilgan bo'lsa — bot belgilangan vaqtda **o'zi** kanalga joylaydi
    va sizga xabar beradi. Xatolik chiqsa, avtomatik qayta uriniladi; barcha urinishlar
    tugasa, 📅 Rejalashtirilganlar bo'limida "qayta urinish"ni qo'lda bosishingiz mumkin.
 

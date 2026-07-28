@@ -89,3 +89,34 @@ def test_avoid_line_included_when_previous_text_given(monkeypatch):
     monkeypatch.setattr(ai_service, "_chat", fake_chat)
     asyncio.run(ai_service.generate_post("mavzu", previous_text="Avvalgi post matni"))
     assert "Avvalgi post matni" in captured["user_prompt"]
+
+
+def test_brainstorm_step_asks_question_when_not_done(monkeypatch):
+    _patch_chat(monkeypatch, {"done": False, "question": "Qaysi sinf uchun?"})
+    result = asyncio.run(ai_service.brainstorm_step([{"role": "user", "content": "yangi kurs"}]))
+    assert result == {"done": False, "question": "Qaysi sinf uchun?"}
+
+
+def test_brainstorm_step_returns_brief_when_done(monkeypatch):
+    _patch_chat(monkeypatch, {"done": True, "brief": "5-sinflar uchun matematika kursi, yangi guruh."})
+    result = asyncio.run(ai_service.brainstorm_step([{"role": "user", "content": "matematika"}]))
+    assert result["done"] is True
+    assert "matematika" in result["brief"]
+
+
+def test_brainstorm_step_empty_question_raises(monkeypatch):
+    _patch_chat(monkeypatch, {"done": False, "question": ""})
+    with pytest.raises(ai_service.ContentValidationError):
+        asyncio.run(ai_service.brainstorm_step([{"role": "user", "content": "x"}]))
+
+
+def test_brainstorm_step_force_finish_included_in_prompt(monkeypatch):
+    captured = {}
+
+    async def fake_chat(system_prompt, user_prompt):
+        captured["system_prompt"] = system_prompt
+        return json.dumps({"done": True, "brief": "yakuniy"})
+
+    monkeypatch.setattr(ai_service, "_chat", fake_chat)
+    asyncio.run(ai_service.brainstorm_step([{"role": "user", "content": "x"}], force_finish=True))
+    assert "ENDI YANA SAVOL BERMA" in captured["system_prompt"]

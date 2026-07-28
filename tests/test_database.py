@@ -16,6 +16,14 @@ def temp_db(tmp_path, monkeypatch):
     return db_path
 
 
+def test_add_content_stores_target_key(temp_db):
+    content_id = asyncio.run(db.add_content(
+        content_type="post", topic="t", text="x", created_by=1, target_key="school"
+    ))
+    content = asyncio.run(db.get_content(content_id))
+    assert content["target_key"] == "school"
+
+
 def test_add_and_get_content(temp_db):
     content_id = asyncio.run(db.add_content(
         content_type="post", topic="test", text="Salom dunyo", created_by=1

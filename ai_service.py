@@ -8,9 +8,7 @@ import base64
 import os
 import uuid
 from openai import AsyncOpenAI
-from config import (
-    OPENAI_API_KEY, TEXT_MODEL, IMAGE_MODEL, CHANNEL_TOPIC, IMAGE_STYLE, IMAGE_SIZE, IMAGES_DIR,
-)
+from config import OPENAI_API_KEY, TEXT_MODEL, IMAGE_MODEL, IMAGE_STYLE, IMAGE_SIZE, IMAGES_DIR
 from branding import add_branding
 
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
@@ -19,6 +17,9 @@ os.makedirs(IMAGES_DIR, exist_ok=True)
 
 MIN_POLL_OPTIONS = 2
 MAX_POLL_OPTIONS = 6
+MAX_BRAINSTORM_TURNS = 4
+
+_FALLBACK_TOPIC = "ta'lim va rivojlanish"
 
 
 class ContentValidationError(Exception):
@@ -54,14 +55,16 @@ async def _chat(system_prompt: str, user_prompt: str) -> str:
     return response.choices[0].message.content
 
 
-async def generate_post(topic: str | None = None, previous_text: str | None = None) -> dict:
+async def generate_post(topic: str | None = None, previous_text: str | None = None,
+                         channel_topic: str | None = None) -> dict:
     """
     Kanal uchun oddiy post matni generatsiya qiladi.
     topic berilmasa, AI kanal mavzusidan kelib chiqib o'zi tanlaydi.
     Natija: {"title": str, "text": str, "image_prompt": str}
     """
+    channel_topic = channel_topic or _FALLBACK_TOPIC
     topic_line = f'Mavzu: "{topic}".' if topic else (
-        f"Mavzuni o'zing tanla, kanal yo'nalishi: {CHANNEL_TOPIC}."
+        f"Mavzuni o'zing tanla, kanal yo'nalishi: {channel_topic}."
     )
     system_prompt = (
         "Sen o'quv markazi (ta'lim markazi) Telegram kanali uchun reklama/e'lon postlari yozadigan "
@@ -110,7 +113,7 @@ async def generate_post(topic: str | None = None, previous_text: str | None = No
         'to\'liq matn (500-850 belgi)", '
         '"image_prompt": "yuqoridagi talablarga mos, sodda kompozitsiyali, aniq rasm tavsifi (ingliz tilida)"}'
     )
-    user_prompt = f"{topic_line} Kanal yo'nalishi: {CHANNEL_TOPIC}. Post yoz.{_avoid_line(previous_text)}"
+    user_prompt = f"{topic_line} Kanal yo'nalishi: {channel_topic}. Post yoz.{_avoid_line(previous_text)}"
     raw = await _chat(system_prompt, user_prompt)
     data = json.loads(raw)
     if not data.get("title") or not data.get("text"):
@@ -118,13 +121,15 @@ async def generate_post(topic: str | None = None, previous_text: str | None = No
     return data
 
 
-async def generate_quiz(topic: str | None = None, previous_text: str | None = None) -> dict:
+async def generate_quiz(topic: str | None = None, previous_text: str | None = None,
+                         channel_topic: str | None = None) -> dict:
     """
     Quiz (viktorina) generatsiya qiladi - 4 variant va to'g'ri javob bilan.
     Natija: {"question": str, "options": [str,str,str,str], "correct_index": int, "explanation": str}
     """
+    channel_topic = channel_topic or _FALLBACK_TOPIC
     topic_line = f'Mavzu: "{topic}".' if topic else (
-        f"Mavzuni o'zing tanla, kanal yo'nalishi: {CHANNEL_TOPIC}."
+        f"Mavzuni o'zing tanla, kanal yo'nalishi: {channel_topic}."
     )
     system_prompt = (
         "Sen Telegram kanali uchun quiz (viktorina) tuzuvchisan. "
@@ -153,7 +158,7 @@ async def generate_quiz(topic: str | None = None, previous_text: str | None = No
     )
     user_prompt = (
         f"{topic_line} Bitta quiz savoli tuz. Mavzuga qat'iy amal qil "
-        f"(kanal yo'nalishi faqat qo'shimcha kontekst uchun: {CHANNEL_TOPIC})."
+        f"(kanal yo'nalishi faqat qo'shimcha kontekst uchun: {channel_topic})."
         f"{_avoid_line(previous_text)}"
     )
     raw = await _chat(system_prompt, user_prompt)
@@ -174,13 +179,15 @@ async def generate_quiz(topic: str | None = None, previous_text: str | None = No
     return data
 
 
-async def generate_poll(topic: str | None = None, previous_text: str | None = None) -> dict:
+async def generate_poll(topic: str | None = None, previous_text: str | None = None,
+                         channel_topic: str | None = None) -> dict:
     """
     So'rovnoma (poll) generatsiya qiladi - savol va 2-6 variant.
     Natija: {"question": str, "options": [str, ...]}
     """
+    channel_topic = channel_topic or _FALLBACK_TOPIC
     topic_line = f'Mavzu: "{topic}".' if topic else (
-        f"Mavzuni o'zing tanla, kanal yo'nalishi: {CHANNEL_TOPIC}."
+        f"Mavzuni o'zing tanla, kanal yo'nalishi: {channel_topic}."
     )
     system_prompt = (
         "Sen Telegram kanali uchun qiziqarli so'rovnoma (poll) tuzuvchisan. "
@@ -192,7 +199,7 @@ async def generate_poll(topic: str | None = None, previous_text: str | None = No
         '{"question": "so\'rovnoma savoli (max 255 belgi)", '
         '"options": ["variant1 (max 90 b)", "variant2 (max 90 b)", "variant3 (max 90 b)"]}'
     )
-    user_prompt = f"{topic_line} Kanal yo'nalishi: {CHANNEL_TOPIC}. Bitta so'rovnoma tuz.{_avoid_line(previous_text)}"
+    user_prompt = f"{topic_line} Kanal yo'nalishi: {channel_topic}. Bitta so'rovnoma tuz.{_avoid_line(previous_text)}"
     raw = await _chat(system_prompt, user_prompt)
     data = json.loads(raw)
 
@@ -211,12 +218,14 @@ async def generate_poll(topic: str | None = None, previous_text: str | None = No
     return data
 
 
-async def generate_image(prompt: str) -> str:
+async def generate_image(prompt: str, brand_name: str | None = None, logo_path: str | None = None,
+                          accent_color: str | None = None) -> str:
     """
     gpt-image-2 orqali post matniga mos, professional darajadagi rasm generatsiya qiladi.
     Kanal uchun belgilangan yagona vizual uslub (IMAGE_STYLE) va sifat kuchaytirgichlari
     postning aniq tavsifiga (prompt) qo'shib yuboriladi - shu orqali rasmlar ham mazmunan
     postga mos, ham vizual jihatdan bir xil "brend"ga ega bo'ladi.
+    brand_name/logo_path/accent_color berilsa, o'sha target'ning brendi bilan belgilanadi.
     Rasmni diskka saqlaydi va fayl yo'lini qaytaradi.
     """
     full_prompt = (
@@ -247,15 +256,75 @@ async def generate_image(prompt: str) -> str:
         f.write(image_bytes)
 
     # Rasmga kanal logotipi va nomini avtomatik joylash (professional brend ko'rinishi uchun)
-    branded_path = add_branding(filename)
+    branded_path = add_branding(filename, brand_name=brand_name, logo_path=logo_path,
+                                 accent_color=accent_color)
     return branded_path
 
 
-async def regenerate_text_variation(content_type: str, previous_text: str, topic: str | None) -> dict:
+async def regenerate_text_variation(content_type: str, previous_text: str, topic: str | None,
+                                     channel_topic: str | None = None) -> dict:
     """Foydalanuvchi 'boshqa variant' desa, avvalgisidan mazmunan farqli yangi variant yaratadi."""
     if content_type == "post":
-        return await generate_post(topic, previous_text=previous_text)
+        return await generate_post(topic, previous_text=previous_text, channel_topic=channel_topic)
     elif content_type == "quiz":
-        return await generate_quiz(topic, previous_text=previous_text)
+        return await generate_quiz(topic, previous_text=previous_text, channel_topic=channel_topic)
     else:
-        return await generate_poll(topic, previous_text=previous_text)
+        return await generate_poll(topic, previous_text=previous_text, channel_topic=channel_topic)
+
+
+async def brainstorm_step(history: list[dict], channel_topic: str | None = None,
+                           force_finish: bool = False) -> dict:
+    """
+    Adminning xom g'oyasini AI bilan suhbat orqali aniqlashtiradi.
+    history: [{"role": "user"|"assistant", "content": str}, ...] (eng oxirgi element — foydalanuvchi javobi)
+    Natija: {"done": False, "question": str} — yana bitta aniqlashtiruvchi savol,
+       yoki {"done": True, "brief": str} — kontent generatsiya qilish uchun tayyor, to'liq topshiriq.
+    """
+    channel_topic = channel_topic or _FALLBACK_TOPIC
+
+    if force_finish:
+        instruction = (
+            "MUHIM: savollar limiti tugadi — ENDI YANA SAVOL BERMA. Hozirgacha yig'ilgan barcha "
+            "ma'lumotlarni birlashtirib, 'done': true va 'brief' bilan yakuniy javob ber, hatto "
+            "ba'zi detallar hali noaniq bo'lsa ham — mavjud ma'lumot asosida eng yaxshi topshiriqni tuz."
+        )
+    else:
+        instruction = (
+            "Agar g'oya HALI YETARLICHA ANIQ EMAS bo'lsa (masalan qaysi aniq kurs/fan/mavzu, kimlarga "
+            "mo'ljallangan, qanday muhim tafsilot borligi noaniq) — 'done': false va 'question' "
+            "maydoniga FAQAT BITTA, qisqa va aniq savol yoz.\n"
+            "Agar allaqachon post yozish uchun YETARLI ma'lumot bo'lsa — 'done': true qil va "
+            "'brief' maydoniga TO'PLANGAN BARCHA ma'lumotlarni birlashtirib, keyingi AI modul "
+            "post/quiz/poll yozishi uchun to'liq, aniq texnik topshiriq yoz."
+        )
+
+    system_prompt = (
+        "Sen ijodiy direktorsan — adminning xom g'oyasini bir necha qisqa savol orqali "
+        "aniqlashtirib, keyin kontent generatsiya qiladigan boshqa AI modul uchun ANIQ, "
+        "BATAFSIL texnik topshiriq (brief) tayyorlaysan.\n\n"
+        f"Kanal/tashkilot konteksti: {channel_topic}\n\n"
+        f"{instruction}\n\n"
+        "'brief' o'zbek tilida, 3-6 gap, aniq mavzu/kurs/fan nomi, maqsadli auditoriya, asosiy "
+        "afzalliklar yoki tafsilotlarni o'z ichiga olsin — bu keyingi AI post yozishi uchun "
+        "to'liq kontekst bo'lishi shart.\n\n"
+        "Faqat quyidagi JSON formatlardan BIRI bilan javob ber, boshqa hech narsa yozma: "
+        '{"done": false, "question": "aniqlashtiruvchi savol"} yoki '
+        '{"done": true, "brief": "to\'liq texnik topshiriq"}'
+    )
+    user_prompt = "Suhbat tarixi (user — admin, assistant — sen):\n" + "\n".join(
+        f"{h['role']}: {h['content']}" for h in history
+    )
+
+    raw = await _chat(system_prompt, user_prompt)
+    data = json.loads(raw)
+
+    if data.get("done"):
+        brief = (data.get("brief") or "").strip()
+        if not brief:
+            raise ContentValidationError("AI brainstorm yakuniy topshiriqni bo'sh qaytardi.")
+        return {"done": True, "brief": brief}
+
+    question = (data.get("question") or "").strip()
+    if not question:
+        raise ContentValidationError("AI brainstorm savolni bo'sh qaytardi.")
+    return {"done": False, "question": question}

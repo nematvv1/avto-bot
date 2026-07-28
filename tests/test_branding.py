@@ -16,7 +16,7 @@ def sample_image(tmp_path):
 
 
 def test_add_branding_produces_file(sample_image, monkeypatch, tmp_path):
-    if not os.path.exists(config.LOGO_PATH):
+    if not os.path.exists(config.get_target()["logo_path"]):
         pytest.skip("assets/logo.png topilmadi — branding testi o'tkazib yuborildi.")
 
     out_dir = str(tmp_path / "generated_images")

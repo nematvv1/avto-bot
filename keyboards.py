@@ -22,6 +22,16 @@ def back_to_menu() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+def target_choice_menu(targets: dict) -> InlineKeyboardMarkup:
+    """Bir nechta kanal/tashkilot sozlangan bo'lsa, qaysi biri uchun kontent yaratishni tanlash."""
+    kb = InlineKeyboardBuilder()
+    for key, target in targets.items():
+        kb.button(text=target["label"], callback_data=f"target:{key}")
+    kb.button(text="⬅️ Bosh menyu", callback_data="menu:main")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
 def content_type_menu() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="📝 Post", callback_data="type:post")

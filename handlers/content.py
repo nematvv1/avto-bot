@@ -16,7 +16,7 @@ from publisher import publish_content
 from states import ContentCreation
 from handlers.filters import IsAdmin
 from utils import safe_truncate_html
-from config import MAX_GENERATIONS_PER_HOUR, POST_CONTACT_FOOTER
+from config import MAX_GENERATIONS_PER_HOUR, CHANNEL_TARGETS, DEFAULT_TARGET_KEY, get_target
 
 MIN_QUIZ_OPTIONS = 2
 MAX_QUIZ_OPTIONS = 10
@@ -38,17 +38,42 @@ def _delete_image_files(image_path: str) -> None:
 TYPE_LABELS = {"post": "📝 Post", "quiz": "🧠 Quiz", "poll": "📊 So'rovnoma"}
 
 
-# ---------- 1. Kontent turini tanlash ----------
+# ---------- 0. Kanal/tashkilot tanlash (bir nechta target sozlangan bo'lsa) ----------
 
 @router.callback_query(F.data == "menu:new_content")
 async def start_new_content(callback: CallbackQuery, state: FSMContext):
     await state.clear()
+    if len(CHANNEL_TARGETS) > 1:
+        await state.set_state(ContentCreation.choosing_target)
+        await callback.message.edit_text(
+            "Qaysi kanal/tashkilot uchun kontent yaratamiz?",
+            reply_markup=kb.target_choice_menu(CHANNEL_TARGETS),
+        )
+    else:
+        await state.update_data(target_key=DEFAULT_TARGET_KEY)
+        await state.set_state(ContentCreation.choosing_type)
+        await callback.message.edit_text(
+            "Qaysi turdagi kontent yaratamiz?", reply_markup=kb.content_type_menu()
+        )
+    await callback.answer()
+
+
+@router.callback_query(ContentCreation.choosing_target, F.data.startswith("target:"))
+async def choose_target(callback: CallbackQuery, state: FSMContext):
+    target_key = callback.data.split(":", 1)[1]
+    if target_key not in CHANNEL_TARGETS:
+        await callback.answer("Noma'lum tanlov.", show_alert=True)
+        return
+    await state.update_data(target_key=target_key)
     await state.set_state(ContentCreation.choosing_type)
+    label = CHANNEL_TARGETS[target_key]["label"]
     await callback.message.edit_text(
-        "Qaysi turdagi kontent yaratamiz?", reply_markup=kb.content_type_menu()
+        f"🏷 {label}\n\nQaysi turdagi kontent yaratamiz?", reply_markup=kb.content_type_menu()
     )
     await callback.answer()
 
+
+# ---------- 1. Kontent turini tanlash ----------
 
 @router.callback_query(ContentCreation.choosing_type, F.data.startswith("type:"))
 async def choose_type(callback: CallbackQuery, state: FSMContext):
@@ -75,15 +100,61 @@ async def topic_auto(callback: CallbackQuery, state: FSMContext):
 async def topic_manual(callback: CallbackQuery, state: FSMContext):
     await state.set_state(ContentCreation.waiting_topic_text)
     await callback.message.edit_text(
-        "✍️ Mavzuni yozing (masalan: <i>«Python'da ro'yxatlar bilan ishlash»</i>):"
+        "✍️ G'oyangizni erkin yozing (xom bo'lsa ham bo'ladi) — kerak bo'lsa AI "
+        "aniqlashtiruvchi savol(lar) beradi, so'ng shu asosda mukammal kontent tuzadi:"
     )
     await callback.answer()
 
 
 @router.message(ContentCreation.waiting_topic_text)
 async def topic_text_received(message: Message, state: FSMContext):
-    await state.update_data(topic=message.text.strip())
-    await _after_topic_chosen(message, state, message.bot)
+    await state.update_data(
+        brainstorm_history=[{"role": "user", "content": message.text.strip()}],
+        brainstorm_turns=0,
+    )
+    await _brainstorm_continue(message, state)
+
+
+@router.message(ContentCreation.brainstorming)
+async def brainstorm_answer_received(message: Message, state: FSMContext):
+    data = await state.get_data()
+    history = data.get("brainstorm_history", [])
+    history.append({"role": "user", "content": message.text.strip()})
+    await state.update_data(brainstorm_history=history)
+    await _brainstorm_continue(message, state)
+
+
+async def _brainstorm_continue(message: Message, state: FSMContext):
+    """AI bilan qisqa suhbat orqali xom g'oyani aniqlashtiradi, so'ng odatdagi generatsiya oqimiga o'tadi."""
+    data = await state.get_data()
+    history = data.get("brainstorm_history", [])
+    turns = data.get("brainstorm_turns", 0)
+    target = get_target(data.get("target_key"))
+
+    thinking_msg = await message.answer("🤔 ...")
+    try:
+        result = await ai_service.brainstorm_step(
+            history, channel_topic=target["topic"], force_finish=turns >= ai_service.MAX_BRAINSTORM_TURNS
+        )
+    except Exception:
+        # AI bilan aloqa uzilsa — foydalanuvchini bloklab qo'ymaslik uchun,
+        # yozilgan xom g'oyani to'g'ridan-to'g'ri mavzu sifatida ishlatamiz.
+        await thinking_msg.delete()
+        combined = " ".join(h["content"] for h in history if h["role"] == "user")
+        await state.update_data(topic=combined)
+        await _after_topic_chosen(message, state, message.bot)
+        return
+
+    if result["done"]:
+        await thinking_msg.edit_text(f"✅ Tushundim!\n\n<i>{result['brief']}</i>")
+        history.append({"role": "assistant", "content": result["brief"]})
+        await state.update_data(topic=result["brief"], brainstorm_history=history)
+        await _after_topic_chosen(message, state, message.bot)
+    else:
+        history.append({"role": "assistant", "content": result["question"]})
+        await state.update_data(brainstorm_history=history, brainstorm_turns=turns + 1)
+        await state.set_state(ContentCreation.brainstorming)
+        await thinking_msg.edit_text(f"❓ {result['question']}")
 
 
 async def _after_topic_chosen(message: Message, state: FSMContext, bot: Bot):
@@ -117,6 +188,8 @@ async def _generate_and_preview(message: Message, state: FSMContext, bot: Bot,
     content_type = data["content_type"]
     topic = data.get("topic")
     want_image = data.get("want_image", False)
+    target_key = data.get("target_key")
+    target = get_target(target_key)
 
     recent = await db.count_recent_generations(60, created_by=message.chat.id)
     if recent >= MAX_GENERATIONS_PER_HOUR:
@@ -133,34 +206,43 @@ async def _generate_and_preview(message: Message, state: FSMContext, bot: Bot,
 
     try:
         if content_type == "post":
-            generated = await ai_service.generate_post(topic, previous_text=previous_text)
+            generated = await ai_service.generate_post(
+                topic, previous_text=previous_text, channel_topic=target["topic"]
+            )
             text = f"<b>{generated['title']}</b>\n\n{generated['text']}"
-            if POST_CONTACT_FOOTER:
-                text += f"\n\n{POST_CONTACT_FOOTER}"
+            if target["contact_footer"]:
+                text += f"\n\n{target['contact_footer']}"
             image_path = None
             if want_image:
                 await status_msg.edit_text("🎨 Rasm generatsiya qilinmoqda...")
-                image_path = await ai_service.generate_image(generated["image_prompt"])
+                image_path = await ai_service.generate_image(
+                    generated["image_prompt"], brand_name=target["brand_name"],
+                    logo_path=target["logo_path"], accent_color=target["accent_color"],
+                )
             content_id = await db.add_content(
                 content_type="post", topic=topic, text=text,
-                image_path=image_path, created_by=message.chat.id,
+                image_path=image_path, created_by=message.chat.id, target_key=target_key,
             )
 
         elif content_type == "quiz":
-            generated = await ai_service.generate_quiz(topic, previous_text=previous_text)
+            generated = await ai_service.generate_quiz(
+                topic, previous_text=previous_text, channel_topic=target["topic"]
+            )
             content_id = await db.add_content(
                 content_type="quiz", topic=topic, text=generated["question"],
                 options=generated["options"], correct_option=generated["correct_index"],
                 explanation=generated.get("explanation", ""),
-                created_by=message.chat.id,
+                created_by=message.chat.id, target_key=target_key,
             )
             await db.update_content_text(content_id, generated["question"])
 
         else:  # poll
-            generated = await ai_service.generate_poll(topic, previous_text=previous_text)
+            generated = await ai_service.generate_poll(
+                topic, previous_text=previous_text, channel_topic=target["topic"]
+            )
             content_id = await db.add_content(
                 content_type="poll", topic=topic, text=generated["question"],
-                options=generated["options"], created_by=message.chat.id,
+                options=generated["options"], created_by=message.chat.id, target_key=target_key,
             )
 
     except ai_service.ContentValidationError as e:
@@ -198,9 +280,12 @@ async def _generate_and_preview(message: Message, state: FSMContext, bot: Bot,
 async def _show_preview(message: Message, state: FSMContext, bot: Bot, content_id: int):
     content = await db.get_content(content_id)
     data = await state.get_data()
+    target_prefix = ""
+    if len(CHANNEL_TARGETS) > 1:
+        target_prefix = f"🏷 {get_target(content.get('target_key'))['label']}\n"
 
     if content["content_type"] == "post":
-        caption = "👀 <b>Ko'rib chiqing:</b>\n\n" + content["text"]
+        caption = f"{target_prefix}👀 <b>Ko'rib chiqing:</b>\n\n" + content["text"]
         if content.get("image_path"):
             photo = FSInputFile(content["image_path"])
             await bot.send_photo(
@@ -223,7 +308,7 @@ async def _show_preview(message: Message, state: FSMContext, bot: Bot, content_i
         # Izohni DB dan o'qiymiz (FSM state'dan emas)
         explanation = content.get("explanation") or data.get("explanation", "")
         text = (
-            f"👀 <b>Quiz ko'rib chiqing:</b>\n\n"
+            f"{target_prefix}👀 <b>Quiz ko'rib chiqing:</b>\n\n"
             f"❓ {content['text']}\n\n{options_text}\n\n"
             f"💡 <i>{explanation}</i>"
         )
@@ -234,7 +319,7 @@ async def _show_preview(message: Message, state: FSMContext, bot: Bot, content_i
     else:  # poll
         options = json.loads(content["options_json"])
         options_text = "\n".join(f"▫️ {opt}" for opt in options)
-        text = f"👀 <b>So'rovnoma ko'rib chiqing:</b>\n\n❓ {content['text']}\n\n{options_text}"
+        text = f"{target_prefix}👀 <b>So'rovnoma ko'rib chiqing:</b>\n\n❓ {content['text']}\n\n{options_text}"
         await bot.send_message(
             chat_id=message.chat.id, text=text, reply_markup=kb.preview_actions(content_id, "poll")
         )

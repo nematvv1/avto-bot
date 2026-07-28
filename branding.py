@@ -7,7 +7,7 @@ logotip dumaloq burchakli (rounded), qattiq ajratgich yo'q.
 import os
 from PIL import Image, ImageDraw, ImageFont
 
-from config import BRAND_NAME, LOGO_PATH, ADD_BRANDING, BRAND_ACCENT_COLOR, IMAGES_DIR
+from config import ADD_BRANDING, IMAGES_DIR, get_target
 
 FONT_PATH = os.path.join(os.path.dirname(__file__), "assets", "fonts", "Outfit-Bold.ttf")
 BRANDED_DIR = IMAGES_DIR
@@ -34,12 +34,18 @@ def _make_rounded_logo(logo: Image.Image, radius_ratio: float = 0.22) -> Image.I
     return result
 
 
-def add_branding(base_image_path: str) -> str:
+def add_branding(base_image_path: str, brand_name: str | None = None,
+                  logo_path: str | None = None, accent_color: str | None = None) -> str:
     """
-    Rasmning PASTKI qismiga logotip (dumaloq burchakli) + kanal nomini joylab saqlaydi.
+    Rasmning PASTKI qismiga logotip (dumaloq burchakli) + brend nomini joylab saqlaydi.
     Rasm bilan uyg'un — yumshoq gradient, qattiq ajratgich yo'q.
+    brand_name/logo_path/accent_color berilmasa, standart target'ning qiymatlari ishlatiladi.
     """
-    if not ADD_BRANDING or not os.path.exists(LOGO_PATH):
+    default_target = get_target()
+    brand_name = brand_name or default_target["brand_name"]
+    logo_path = logo_path or default_target["logo_path"]
+
+    if not ADD_BRANDING or not os.path.exists(logo_path):
         return base_image_path
 
     img = Image.open(base_image_path).convert("RGBA")
@@ -54,7 +60,7 @@ def add_branding(base_image_path: str) -> str:
     padding_y = int(H * 0.03)
 
     # --- 3. Logotip — dumaloq burchakli ---
-    logo_raw = Image.open(LOGO_PATH).convert("RGBA")
+    logo_raw = Image.open(logo_path).convert("RGBA")
     lw_orig, lh_orig = logo_raw.size
     logo_w = int(logo_h * lw_orig / lh_orig)
     logo_raw = logo_raw.resize((logo_w, logo_h), Image.LANCZOS)
@@ -70,7 +76,7 @@ def add_branding(base_image_path: str) -> str:
     except Exception:
         font = ImageFont.load_default()
 
-    name_upper = BRAND_NAME.upper()
+    name_upper = brand_name.upper()
     bbox = draw.textbbox((0, 0), name_upper, font=font)
     text_w = bbox[2] - bbox[0]
     text_h = bbox[3] - bbox[1]

@@ -41,9 +41,6 @@ DB_PATH = os.getenv("DB_PATH", "bot_database.db")
 # aks holda har deploy'da rasmlar o'chib ketadi.
 IMAGES_DIR = os.getenv("IMAGES_DIR", "generated_images")
 
-# Kanal mavzusi/yo'nalishi - AI kontent generatsiya qilganda shu kontekstdan foydalanadi
-CHANNEL_TOPIC = os.getenv("CHANNEL_TOPIC", "IT, dasturlash va texnologiyalar")
-
 # Kanalning yagona vizual uslubi (brendi) - barcha rasmlar shu uslubda generatsiya qilinadi.
 # Bo'sh qoldirsangiz, AI har safar o'zi mos uslub tanlaydi (uslublar bir-biriga o'xshamasligi mumkin).
 IMAGE_STYLE = os.getenv(
@@ -59,29 +56,64 @@ IMAGE_SIZE = os.getenv("IMAGE_SIZE", "1536x1024")
 # So'rovnomada bir nechta javob tanlash mumkinmi (true/false)
 POLL_ALLOWS_MULTIPLE = os.getenv("POLL_ALLOWS_MULTIPLE", "false").lower() == "true"
 
-# Har bir "post" turidagi kontent oxiriga avtomatik qo'shiladigan kontakt bloki
-# (bog'lanish uchun raqamlar, ro'yxatdan o'tish manzili va h.k.). Bo'sh qoldirilsa, qo'shilmaydi.
-# .env faylida qatorlarni "\n" bilan ajrating (masalan: "Qator1\nQator2").
-_post_contact_footer_raw = os.getenv("POST_CONTACT_FOOTER", "")
-POST_CONTACT_FOOTER = _post_contact_footer_raw.replace("\\n", "\n")
-
-# --- Kanal brendi (logo + nom) ---
-# Har bir generatsiya qilingan rasmga avtomatik logotip va kanal nomi joylanadimi
+# Har bir generatsiya qilingan rasmga avtomatik logotip va nom joylanadimi (barcha targetlar uchun)
 ADD_BRANDING = os.getenv("ADD_BRANDING", "true").lower() == "true"
 
-# Kanal nomi (rasmda ko'rinadi)
-BRAND_NAME = os.getenv("BRAND_NAME", "Iqtidor Academy")
 
-# Logotip fayli manzili. Nisbiy yo'l berilsa (masalan "assets/logo.png"), loyiha papkasiga
-# nisbatan hal qilinadi — shunda bot qaysi joriy papkadan ishga tushirilishidan qat'i nazar ishlaydi.
-_logo_path_raw = os.getenv("LOGO_PATH", os.path.join(os.path.dirname(__file__), "assets", "logo.png"))
-LOGO_PATH = (
-    _logo_path_raw if os.path.isabs(_logo_path_raw)
-    else os.path.join(os.path.dirname(__file__), _logo_path_raw)
-)
+def _abs_path(raw: str) -> str:
+    return raw if os.path.isabs(raw) else os.path.join(os.path.dirname(__file__), raw)
 
-# Brend rangida ajratuvchi chiziq (logotipingizdagi haqiqiy ko'k rang)
-BRAND_ACCENT_COLOR = os.getenv("BRAND_ACCENT_COLOR", "#2033E9")
+
+_DEFAULT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
+
+
+def _target_env(key: str, field: str, default: str = "") -> str:
+    return os.getenv(f"TARGET_{key.upper()}_{field}", default)
+
+
+# --- Kanal(lar) va brend(lar) ---
+# Bot bir nechta turli kanalga (masalan turli tashkilot/brendga) xizmat qilishi mumkin —
+# har biri o'z kanal ID'si, mavzusi, brend nomi, logotipi va kontakt ma'lumotiga ega.
+#
+# Ko'p-kanal sozlash uchun: TARGETS=kalit1,kalit2,... va har bir kalit uchun
+# TARGET_<KALIT>_CHANNEL_ID, TARGET_<KALIT>_LABEL, TARGET_<KALIT>_TOPIC,
+# TARGET_<KALIT>_BRAND_NAME, TARGET_<KALIT>_LOGO_PATH, TARGET_<KALIT>_ACCENT_COLOR,
+# TARGET_<KALIT>_CONTACT_FOOTER kabi o'zgaruvchilarni belgilang.
+# TARGETS bo'sh qoldirilsa — eski (bitta kanalli) CHANNEL_ID/BRAND_NAME/... sozlamalari ishlatiladi.
+_target_keys = [k.strip() for k in os.getenv("TARGETS", "").split(",") if k.strip()]
+
+CHANNEL_TARGETS: dict[str, dict] = {}
+if _target_keys:
+    for _key in _target_keys:
+        CHANNEL_TARGETS[_key] = {
+            "label": _target_env(_key, "LABEL", _key),
+            "channel_id": _target_env(_key, "CHANNEL_ID", ""),
+            "topic": _target_env(_key, "TOPIC", ""),
+            "brand_name": _target_env(_key, "BRAND_NAME", _key),
+            "logo_path": _abs_path(_target_env(_key, "LOGO_PATH", _DEFAULT_LOGO_PATH)),
+            "accent_color": _target_env(_key, "ACCENT_COLOR", "#2033E9"),
+            "contact_footer": _target_env(_key, "CONTACT_FOOTER", "").replace("\\n", "\n"),
+        }
+else:
+    CHANNEL_TARGETS["default"] = {
+        "label": os.getenv("BRAND_NAME", "Kanal"),
+        "channel_id": os.getenv("CHANNEL_ID", ""),
+        "topic": os.getenv("CHANNEL_TOPIC", "IT, dasturlash va texnologiyalar"),
+        "brand_name": os.getenv("BRAND_NAME", "Kanal"),
+        "logo_path": _abs_path(os.getenv("LOGO_PATH", _DEFAULT_LOGO_PATH)),
+        "accent_color": os.getenv("BRAND_ACCENT_COLOR", "#2033E9"),
+        "contact_footer": os.getenv("POST_CONTACT_FOOTER", "").replace("\\n", "\n"),
+    }
+
+DEFAULT_TARGET_KEY = next(iter(CHANNEL_TARGETS))
+
+
+def get_target(key: str | None = None) -> dict:
+    """Berilgan target kaliti uchun sozlamalarni qaytaradi (topilmasa/berilmasa — birinchisi)."""
+    if key and key in CHANNEL_TARGETS:
+        return CHANNEL_TARGETS[key]
+    return CHANNEL_TARGETS[DEFAULT_TARGET_KEY]
+
 
 # Rejalashtirilgan postlarni necha soniyada bir tekshirish
 SCHEDULER_CHECK_INTERVAL = 30

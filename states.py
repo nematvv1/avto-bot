@@ -6,9 +6,11 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class ContentCreation(StatesGroup):
+    choosing_target = State()        # qaysi kanal/tashkilot uchun (bir nechta target bo'lsa)
     choosing_type = State()          # post/quiz/poll tanlash
     choosing_topic_mode = State()    # AI o'zi / qo'lda mavzu
-    waiting_topic_text = State()     # foydalanuvchi mavzuni yozmoqda
+    waiting_topic_text = State()     # foydalanuvchi xom g'oyani yozmoqda (brainstorm boshlanishi)
+    brainstorming = State()          # AI aniqlashtiruvchi savol beradi, foydalanuvchi javob yozmoqda
     choosing_image_option = State()  # post uchun rasm kerakmi
     generating = State()             # AI generatsiya qilmoqda
     previewing = State()             # natija ko'rsatilmoqda, tasdiqlash kutilmoqda

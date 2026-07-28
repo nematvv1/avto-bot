@@ -45,7 +45,8 @@ async def init_db():
                 channel_message_id INTEGER,
                 retry_count INTEGER DEFAULT 0,
                 next_attempt_time TEXT,
-                last_error TEXT
+                last_error TEXT,
+                target_key TEXT
             )
         """)
         await db.execute("""
@@ -64,6 +65,7 @@ async def init_db():
             "retry_count": "ALTER TABLE content ADD COLUMN retry_count INTEGER DEFAULT 0",
             "next_attempt_time": "ALTER TABLE content ADD COLUMN next_attempt_time TEXT",
             "last_error": "ALTER TABLE content ADD COLUMN last_error TEXT",
+            "target_key": "ALTER TABLE content ADD COLUMN target_key TEXT",
         }
         for column, statement in migrations.items():
             if column not in columns:
@@ -78,17 +80,18 @@ async def init_db():
 
 
 async def add_content(content_type, topic, text, options=None, correct_option=None,
-                       explanation=None, image_path=None, created_by=None, status="draft"):
+                       explanation=None, image_path=None, created_by=None, status="draft",
+                       target_key=None):
     async with _connect() as db:
         cursor = await db.execute(
             """INSERT INTO content
                (content_type, topic, text, options_json, correct_option, explanation,
-                image_path, status, created_by, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                image_path, status, created_by, created_at, target_key)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (content_type, topic, text,
              json.dumps(options, ensure_ascii=False) if options else None,
              correct_option, explanation, image_path, status, created_by,
-             datetime.now().isoformat())
+             datetime.now().isoformat(), target_key)
         )
         await db.commit()
         return cursor.lastrowid

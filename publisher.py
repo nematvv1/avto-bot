@@ -5,7 +5,7 @@ Bu modul ham "hozir yuborish" tugmasi, ham rejalashtiruvchi (scheduler) tomonida
 import json
 from aiogram import Bot
 from aiogram.types import FSInputFile
-from config import CHANNEL_ID, POLL_ALLOWS_MULTIPLE
+from config import POLL_ALLOWS_MULTIPLE, get_target
 import database as db
 from utils import safe_truncate_html
 
@@ -13,21 +13,25 @@ from utils import safe_truncate_html
 async def publish_content(bot: Bot, content: dict) -> int:
     """
     content - database.get_content() dan qaytgan dict.
+    content['target_key'] orqali qaysi kanalga joylash aniqlanadi.
     Kanalga joylaydi va channel_message_id ni qaytaradi.
     """
     content_type = content["content_type"]
+    channel_id = get_target(content.get("target_key"))["channel_id"]
+    if not channel_id:
+        raise ValueError("Bu kontent uchun kanal ID sozlanmagan (target topilmadi).")
 
     if content_type == "post":
         if content.get("image_path"):
             photo = FSInputFile(content["image_path"])
             msg = await bot.send_photo(
-                chat_id=CHANNEL_ID,
+                chat_id=channel_id,
                 photo=photo,
                 caption=safe_truncate_html(content["text"], 1024),
             )
         else:
             msg = await bot.send_message(
-                chat_id=CHANNEL_ID, text=safe_truncate_html(content["text"], 4096)
+                chat_id=channel_id, text=safe_truncate_html(content["text"], 4096)
             )
         message_id = msg.message_id
 
@@ -36,7 +40,7 @@ async def publish_content(bot: Bot, content: dict) -> int:
         # Telegram API: savol max 300, har bir variant max 100 belgi
         safe_options = [opt[:100] for opt in options]
         msg = await bot.send_poll(
-            chat_id=CHANNEL_ID,
+            chat_id=channel_id,
             question=content["text"][:300],
             options=safe_options,
             type="quiz",
@@ -51,7 +55,7 @@ async def publish_content(bot: Bot, content: dict) -> int:
         # Telegram API: savol max 300, har bir variant max 100 belgi
         safe_options = [opt[:100] for opt in options]
         msg = await bot.send_poll(
-            chat_id=CHANNEL_ID,
+            chat_id=channel_id,
             question=content["text"][:300],
             options=safe_options,
             type="regular",

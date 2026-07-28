@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 import database as db
 import keyboards as kb
 from handlers.filters import IsAdmin
-from config import CHANNEL_ID, CHANNEL_TOPIC, TEXT_MODEL, IMAGE_MODEL, IMAGE_STYLE, IMAGE_SIZE
+from config import CHANNEL_TARGETS, TEXT_MODEL, IMAGE_MODEL, IMAGE_STYLE, IMAGE_SIZE
 
 router = Router()
 router.message.filter(IsAdmin())
@@ -86,14 +86,19 @@ async def cb_help(callback: CallbackQuery):
 
 @router.callback_query(F.data == "menu:settings")
 async def cb_settings(callback: CallbackQuery):
+    targets_text = "\n\n".join(
+        f"<b>{t['label']}</b>\n"
+        f"📢 Kanal: <code>{t['channel_id'] or 'belgilanmagan'}</code>\n"
+        f"🎯 Mavzu: <i>{t['topic'][:150]}</i>"
+        for t in CHANNEL_TARGETS.values()
+    )
     text = (
         "⚙️ <b>Joriy sozlamalar</b>\n\n"
-        f"📢 Kanal: <code>{CHANNEL_ID or 'belgilanmagan'}</code>\n"
-        f"🎯 Kanal mavzusi: <i>{CHANNEL_TOPIC}</i>\n"
+        f"{targets_text}\n\n"
         f"🧠 Matn modeli: <code>{TEXT_MODEL}</code>\n"
         f"🎨 Rasm modeli: <code>{IMAGE_MODEL}</code>\n"
         f"📐 Rasm o'lchami: <code>{IMAGE_SIZE}</code>\n"
-        f"🖌 Rasm uslubi (brend): <i>{IMAGE_STYLE[:120]}...</i>\n\n"
+        f"🖌 Rasm uslubi: <i>{IMAGE_STYLE[:120]}...</i>\n\n"
         "Sozlamalarni o'zgartirish uchun serverdagi <code>.env</code> faylini tahrirlang "
         "va botni qayta ishga tushiring."
     )
